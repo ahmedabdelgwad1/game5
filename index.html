@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tactical IDSS | Expert Football Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- SPLASH SCREEN -->
+    <div id="splash-screen" class="screen active">
+        <div class="splash-content">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+                    <path d="M2 12h20"></path>
+                </svg>
+            </div>
+            <h1 class="splash-title">Tactical IDSS</h1>
+            <p class="splash-subtitle">Intelligent Decision Support System for Football Managers</p>
+            
+            <div class="splash-features">
+                <span class="feature-chip">Expert System</span>
+                <span class="feature-chip">Fuzzy Logic</span>
+                <span class="feature-chip">Forward Chaining</span>
+                <span class="feature-chip">Explanation Facility</span>
+            </div>
+
+            <button class="btn-primary" onclick="game.startGame()">
+                Start Match Engine →
+            </button>
+        </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="screen flex-column">
+        <!-- TOP BAR -->
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <span style="color:var(--accent-green); font-size:1.2rem;">⚽</span>
+                <span class="top-bar-title">Match Analysis Dashboard</span>
+            </div>
+            <div class="top-bar-center">
+                <div class="scoreboard">
+                    <span class="team">HOME</span>
+                    <span id="score-home" class="score">0</span>
+                    <span class="score-dash">-</span>
+                    <span id="score-away" class="score">1</span>
+                    <span class="team">AWAY</span>
+                </div>
+            </div>
+            <div class="top-bar-right">
+                <div class="timer-display">
+                    ⏱ <span id="match-minute" class="timer-text">70</span>'
+                </div>
+            </div>
+        </header>
+
+        <main class="game-layout">
+            <!-- LEFT PANEL: Match Pitch & Context -->
+            <section class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Live Match Engine</span>
+                    <span class="badge badge-normal" id="match-weather">☀️ Clear</span>
+                </div>
+                <div class="panel-content">
+                    <!-- The Pitch (HTML/CSS) -->
+                    <div class="pitch">
+                        <div class="pitch-lines center-circle"></div>
+                        <div class="pitch-lines center-line"></div>
+                        <div class="pitch-lines penalty-box top"></div>
+                        <div class="pitch-lines penalty-box bottom"></div>
+                        
+                        <!-- Player Dots (Red vs Blue) -->
+                        <div id="players-container">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <div class="section-label" style="margin-top:1.5rem">Match Context Facts</div>
+                    <div class="context-grid" id="context-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- CENTER PANEL: Manager Controls (Fuzzy Logic) -->
+            <section class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Tactical Decisions (Fuzzy Controls)</span>
+                </div>
+                <div class="panel-content" style="padding-top:1rem;">
+                    
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <span>Mentality</span>
+                            <span id="label-mentality" class="fuzzy-label">Balanced</span>
+                        </div>
+                        <input type="range" id="slider-mentality" min="0" max="100" value="50" oninput="game.updateSliders()">
+                        <div class="slider-scale">
+                            <span>Defensive</span>
+                            <span>Attacking</span>
+                        </div>
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <span>Pressing Intensity</span>
+                            <span id="label-pressing" class="fuzzy-label">Medium</span>
+                        </div>
+                        <input type="range" id="slider-pressing" min="0" max="100" value="50" oninput="game.updateSliders()">
+                        <div class="slider-scale">
+                            <span>Sit Deep</span>
+                            <span>High Press</span>
+                        </div>
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <span>Tempo (Pace)</span>
+                            <span id="label-tempo" class="fuzzy-label">Normal</span>
+                        </div>
+                        <input type="range" id="slider-tempo" min="0" max="100" value="50" oninput="game.updateSliders()">
+                        <div class="slider-scale">
+                            <span>Slow</span>
+                            <span>Fast</span>
+                        </div>
+                    </div>
+
+                    <hr class="divider">
+
+                    <div class="section-label">Team Substitutions (<span id="subs-count">5</span>/5)</div>
+                    <div class="sub-controls" style="display:flex; gap:10px; margin-bottom:10px;">
+                        <div style="flex:1">
+                            <div style="font-size:0.6rem; color:var(--text-muted); margin-bottom:4px;">SUB OUT (Starter)</div>
+                            <select id="sub-out" style="width:100%; background:var(--bg-card); color:white; border:1px solid var(--border-medium); border-radius:5px; padding:6px; font-size:0.8rem;"></select>
+                        </div>
+                        <div style="flex:1">
+                            <div style="font-size:0.6rem; color:var(--text-muted); margin-bottom:4px;">SUB IN (Bench)</div>
+                            <select id="sub-in" style="width:100%; background:var(--bg-card); color:white; border:1px solid var(--border-medium); border-radius:5px; padding:6px; font-size:0.8rem;"></select>
+                        </div>
+                    </div>
+                    <button id="btn-make-sub" class="btn-primary" style="padding:0.6rem; font-size:0.75rem; border:1px solid var(--accent-blue); background:rgba(0,176,255,0.1); color:var(--accent-blue);" onclick="game.executeSub()">
+                        🔄 Confirm Substitution
+                    </button>
+
+                    <button id="btn-next-scenario" class="btn-primary" style="margin-top:2rem;" onclick="game.nextScenario()">
+                        ▶️ Start Match
+                    </button>
+                    
+                    <!-- AI Suggestion Alert -->
+                    <div id="ai-alert" class="ai-alert" style="display:none;">
+                        <strong>IDSS Suggestion:</strong>
+                        <p id="ai-alert-text">Based on parameters, consider increasing attack.</p>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- RIGHT PANEL: Inference Engine & Reasoning -->
+            <section class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">IDSS Inference Engine</span>
+                    <div class="ai-status">
+                        <div class="ai-indicator"></div> Live
+                    </div>
+                </div>
+                <div class="panel-content" style="padding-top:1rem;">
+                    
+                    <div class="tabs-container" style="margin-bottom:1rem; border-bottom:1px solid var(--border-medium)">
+                        <button class="tab active" onclick="game.switchAiTab('forward')" id="tab-btn-forward">Forward Chaining</button>
+                        <button class="tab" onclick="game.switchAiTab('backward')" id="tab-btn-backward">Backward Chaining</button>
+                    </div>
+
+                    <div id="ai-tab-forward" style="display:block;">
+                        <div class="section-label">Forward Predictions (Given Facts)</div>
+                        <div id="forward-predictions">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <div id="ai-tab-backward" style="display:none;">
+                        <div class="section-label">Goal: Score a Goal</div>
+                        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:1rem;">
+                            Backward chain to determine necessary tactical facts:
+                        </p>
+                        <div id="backward-tree">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <hr class="divider">
+
+                    <div class="section-label">Explanation Facility</div>
+                    <div id="explanation-box" class="explanation-box">
+                        <div class="empty-state">Make a decision to see evaluation.</div>
+                    </div>
+
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- RESULT SCREEN -->
+    <div id="result-screen" class="screen">
+        <div class="result-dialog">
+            <div class="result-header" id="result-header">
+                <h2>Evaluation Complete</h2>
+                <p style="color:var(--text-muted); font-size:0.9rem;">How your tactical decision impacted the game.</p>
+            </div>
+            
+            <div class="score-summary">
+                <div class="main-score">
+                    <span class="score-number" id="result-probability">0%</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-weight:600; margin-top:0.2rem;">Goal Probability</span>
+                </div>
+                <div style="flex:1; margin-left: 2rem;">
+                    <div id="result-verdict" style="font-size:1.1rem; font-weight:600; color:var(--text-main); margin-bottom:0.5rem;">Good call!</div>
+                    <p id="result-details" style="font-size:0.85rem; color:var(--text-muted);"></p>
+                </div>
+            </div>
+
+            <div class="section-label">Reasoning Rule Applied</div>
+            <div id="applied-rule" class="applied-rule">
+                <!-- Filled by JS -->
+            </div>
+
+            <button class="btn-primary" style="margin-top:2rem;" onclick="game.nextScenario()">Next Scenario</button>
+        </div>
+    </div>
+
+    <script src="knowledge-base.js"></script>
+    <script src="fuzzy-logic.js"></script>
+    <script src="inference-engine.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

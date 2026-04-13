@@ -55,11 +55,14 @@ class InferenceEngine {
         let diffs = [];
         let applyRules = [];
 
-        // Evaluate Mentality
+        // Continuous evaluation distance calculating penalty
         if (scenario.optimal.mentality) {
-            if (userChoices.mentality < scenario.optimal.mentality.min || userChoices.mentality > scenario.optimal.mentality.max) {
-                score -= 20;
-                diffs.push(`Mentality was suboptimal. Expected between ${scenario.optimal.mentality.min}-${scenario.optimal.mentality.max}.`);
+            const target = (scenario.optimal.mentality.min + scenario.optimal.mentality.max) / 2;
+            const dist = Math.abs(userChoices.mentality - target);
+            if (dist > 10) { // allowed padding
+                const penalty = Math.min((dist - 10) * 1.5, 30);
+                score -= penalty;
+                diffs.push(`Mentality skew: distance from optimal is ${Math.floor(dist)}%.`);
             } else {
                 applyRules.push("R1");
             }
@@ -67,17 +70,23 @@ class InferenceEngine {
 
         // Evaluate Pressing
         if (scenario.optimal.pressing) {
-            if (userChoices.pressing < scenario.optimal.pressing.min || userChoices.pressing > scenario.optimal.pressing.max) {
-                score -= 20;
-                diffs.push(`Pressing intensity mismatched game state.`);
+            const target = (scenario.optimal.pressing.min + scenario.optimal.pressing.max) / 2;
+            const dist = Math.abs(userChoices.pressing - target);
+            if (dist > 10) {
+                const penalty = Math.min((dist - 10) * 1.5, 30);
+                score -= penalty;
+                diffs.push(`Pressing intensity skew: distance from optimal is ${Math.floor(dist)}%.`);
             }
         }
 
         // Evaluate Tempo
         if (scenario.optimal.tempo) {
-            if (userChoices.tempo < scenario.optimal.tempo.min || userChoices.tempo > scenario.optimal.tempo.max) {
-                score -= 20;
-                diffs.push(`Tempo was wrong for building attacks effectively.`);
+            const target = (scenario.optimal.tempo.min + scenario.optimal.tempo.max) / 2;
+            const dist = Math.abs(userChoices.tempo - target);
+            if (dist > 10) {
+                const penalty = Math.min((dist - 10) * 1.5, 30);
+                score -= penalty;
+                diffs.push(`Tempo skew: distance from optimal is ${Math.floor(dist)}%.`);
             } else {
                 applyRules.push("R3");
             }

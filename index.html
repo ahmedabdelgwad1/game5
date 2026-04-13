@@ -29,7 +29,7 @@
             </div>
 
             <button class="btn-primary" onclick="game.startGame()">
-                Start Match Engine →
+                Start The Game →
             </button>
         </div>
     </div>
@@ -47,13 +47,13 @@
                     <span class="team">HOME</span>
                     <span id="score-home" class="score">0</span>
                     <span class="score-dash">-</span>
-                    <span id="score-away" class="score">1</span>
+                    <span id="score-away" class="score">0</span>
                     <span class="team">AWAY</span>
                 </div>
             </div>
             <div class="top-bar-right">
                 <div class="timer-display">
-                    ⏱ <span id="match-minute" class="timer-text">70</span>'
+                    ⏱ <span id="match-minute" class="timer-text">0</span>'
                 </div>
             </div>
         </header>
@@ -146,9 +146,18 @@
                         🔄 Confirm Substitution
                     </button>
 
-                    <button id="btn-next-scenario" class="btn-primary" style="margin-top:2rem;" onclick="game.nextScenario()">
-                        ▶️ Start Match
-                    </button>
+                    <!-- MATCH START CONTROLS -->
+                    <div style="display:flex; gap:10px; margin-top:2rem;">
+                        <button id="btn-next-scenario" class="btn-primary" style="flex:1" onclick="game.toggleMatch()">
+                            ▶️ Play Match
+                        </button>
+                        <button class="btn-secondary" style="flex:1; background:var(--card-bg); border:1px solid var(--border-light);" onclick="game.setupScenario('random')">
+                            🎲 Random
+                        </button>
+                        <button class="btn-secondary" style="flex:1; background:var(--card-bg); border:1px solid var(--border-light);" onclick="game.setupScenario('fresh')">
+                            🔄 Restart
+                        </button>
+                    </div>
                     
                     <!-- AI Suggestion Alert -->
                     <div id="ai-alert" class="ai-alert" style="display:none;">

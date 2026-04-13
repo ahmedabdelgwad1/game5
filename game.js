@@ -23,43 +23,68 @@ class GameController {
         target.offsetHeight; // force reflow
         target.classList.add('active');
 
-        // Initialize Dynamic Match State
-        this.matchState = {
-            minute: 0,
-            homeScore: 0,
-            awayScore: 0,
-            weather: 'Rain',
-            oppFatigue: 10,
-            isPlaying: false
-        };
+        this.setupScenario('fresh', false); // Do not auto-play on initial boot
+    }
 
+    setupScenario(mode, autoplay = true) {
+        clearInterval(this.matchInterval);
+        
         this.squad = [
-            { id: 'p1', name: 'Alisson', role: 'GK', fatigue: 5 },
-            { id: 'p2', name: 'Robertson', role: 'LB', fatigue: 15 },
-            { id: 'p3', name: 'Van Dijk', role: 'CB', fatigue: 10 },
-            { id: 'p4', name: 'Konate', role: 'CB', fatigue: 12 },
-            { id: 'p5', name: 'Trent', role: 'RB', fatigue: 18 },
-            { id: 'p6', name: 'Mac Allister', role: 'CM', fatigue: 15 },
-            { id: 'p7', name: 'Endo', role: 'CDM', fatigue: 14 },
-            { id: 'p8', name: 'Szoboszlai', role: 'CM', fatigue: 16 },
-            { id: 'p9', name: 'Diaz', role: 'LW', fatigue: 17 },
-            { id: 'p10', name: 'Nunez', role: 'ST', fatigue: 14 },
-            { id: 'p11', name: 'Salah', role: 'RW', fatigue: 19 }
+            { id: 'p1', name: 'Ter Stegen', role: 'GK', fatigue: 5 },
+            { id: 'p2', name: 'Balde', role: 'LB', fatigue: 15 },
+            { id: 'p3', name: 'Araujo', role: 'CB', fatigue: 10 },
+            { id: 'p4', name: 'Cubarsi', role: 'CB', fatigue: 12 },
+            { id: 'p5', name: 'Kounde', role: 'RB', fatigue: 18 },
+            { id: 'p6', name: 'Pedri', role: 'CM', fatigue: 15 },
+            { id: 'p7', name: 'De Jong', role: 'CDM', fatigue: 14 },
+            { id: 'p8', name: 'Gavi', role: 'CM', fatigue: 16 },
+            { id: 'p9', name: 'Raphinha', role: 'LW', fatigue: 17 },
+            { id: 'p10', name: 'Lewandowski', role: 'ST', fatigue: 14 },
+            { id: 'p11', name: 'Yamal', role: 'RW', fatigue: 19 }
         ];
 
         this.bench = [
-            { id: 's1', name: 'Jota', role: 'FW', fatigue: 0 },
-            { id: 's2', name: 'Gakpo', role: 'LW', fatigue: 0 },
-            { id: 's3', name: 'Gomez', role: 'DF', fatigue: 0 },
-            { id: 's4', name: 'Elliott', role: 'CM', fatigue: 0 },
-            { id: 's5', name: 'Gravenberch', role: 'CM', fatigue: 0 },
-            { id: 's6', name: 'Tsimikas', role: 'LB', fatigue: 0 },
-            { id: 's7', name: 'Bradley', role: 'RB', fatigue: 0 }
+            { id: 's1', name: 'Ferran', role: 'FW', fatigue: 0 },
+            { id: 's2', name: 'Felix', role: 'LW', fatigue: 0 },
+            { id: 's3', name: 'Christensen', role: 'DF', fatigue: 0 },
+            { id: 's4', name: 'Fermin', role: 'CM', fatigue: 0 },
+            { id: 's5', name: 'Romeu', role: 'CDM', fatigue: 0 },
+            { id: 's6', name: 'Fort', role: 'LB', fatigue: 0 },
+            { id: 's7', name: 'Martinez', role: 'CB', fatigue: 0 }
         ];
 
-        this.subsRemaining = 5;
+        if (mode === 'random') {
+            const randomMin = Math.floor(Math.random() * 40) + 40;
+            this.matchState = {
+                minute: randomMin,
+                homeScore: Math.floor(Math.random() * 3),
+                awayScore: Math.floor(Math.random() * 3),
+                homePossession: Math.floor(Math.random() * 40) + 30,
+                weather: Math.random() > 0.5 ? 'Rain' : 'Clear',
+                oppFatigue: Math.floor(Math.random() * 40) + 20,
+                isPlaying: false,
+                halftimeDone: randomMin >= 45
+            };
+            this.matchState.awayPossession = 100 - this.matchState.homePossession;
+            this.subsRemaining = 5;
+            this.squad.forEach(p => p.fatigue = Math.floor(Math.random() * 30) + 10);
+            document.getElementById('explanation-box').innerHTML = `<div class="empty-state">Started Random Scenario!</div>`;
+        } else {
+            this.matchState = {
+                minute: 0, homeScore: 0, awayScore: 0,
+                homePossession: 50, awayPossession: 50,
+                weather: 'Clear', oppFatigue: 10, isPlaying: false,
+                halftimeDone: false
+            };
+            this.subsRemaining = 5;
+            document.getElementById('explanation-box').innerHTML = `<div class="empty-state">Fresh Match Started...</div>`;
+        }
 
+        document.getElementById('btn-next-scenario').textContent = '▶️ Play Match';
+        document.getElementById('btn-next-scenario').disabled = false;
+        
         this.startDynamicMatch();
+        if (autoplay) this.toggleMatch(); // AUTO-START TICKING WHEN SCENARIO SPAWNS
     }
 
     toggleMatch() {
@@ -76,21 +101,47 @@ class GameController {
 
     tickMinute() {
         if (this.matchState.minute >= 90) {
-            this.toggleMatch();
+            if (this.matchState.isPlaying) this.toggleMatch();
             document.getElementById('match-minute').textContent = "FT";
-            document.getElementById('btn-next-scenario').textContent = 'FULL TIME';
             document.getElementById('btn-next-scenario').disabled = true;
             return;
         }
 
         this.matchState.minute++;
         
+        // HALFTIME LOGIC
+        if (this.matchState.minute === 46 && !this.matchState.halftimeDone) {
+            this.matchState.halftimeDone = true;
+            this.matchState.minute = 45; // Display 45 for the break
+            
+            if (this.matchState.isPlaying) this.toggleMatch();
+            
+            document.getElementById('match-minute').textContent = "HT";
+            document.getElementById('btn-next-scenario').textContent = '▶️ Start 2nd Half';
+            
+            // Recover fatigue between halves
+            this.squad.forEach(p => p.fatigue = Math.max(0, p.fatigue - 20));
+            this.matchState.oppFatigue = Math.max(0, this.matchState.oppFatigue - 20);
+            
+            this.liveUpdateSubDropdowns();
+            
+            document.getElementById('explanation-box').innerHTML = `
+                <div style="text-align:center; padding: 2rem; background:rgba(0,0,0,0.5); border-radius:10px;">
+                    <h2 style="color:var(--accent-orange); font-size:2.5rem; margin-bottom:10px;">⏱ Halftime</h2>
+                    <p style="color:var(--text-muted);">Players took a breather in the dressing room and recovered 20% stamina. Review your tactics before the second half starts!</p>
+                </div>
+            `;
+            return; // Skip evaluation this exact tick
+        }
+
         // Fatigue increase logic for all 11 players
         const pressing = parseInt(document.getElementById('slider-pressing').value);
         const tempo = parseInt(document.getElementById('slider-tempo').value);
         
-        let baseDrain = 0.5 + (pressing / 150) + (tempo / 250);
+        let baseDrain = 0.15 + (pressing / 400) + (tempo / 500);
+        if (this.matchState.weather === 'Rain') baseDrain *= 1.25; // Rain tires players out more
         
+        let totalHomeFatigue = 0;
         this.squad.forEach(p => {
             let mult = 1.0;
             if (p.role === 'GK') mult = 0.1;
@@ -98,64 +149,25 @@ class GameController {
             
             p.fatigue += (baseDrain * mult);
             if (p.fatigue > 100) p.fatigue = 100;
+            totalHomeFatigue += p.fatigue;
         });
 
-        this.matchState.oppFatigue += 0.8;
+        // Opponent gets tired faster if Barcelona holds possession!
+        let oppDrain = 0.3 + (this.matchState.homePossession / 100);
+        if (this.matchState.weather === 'Rain') oppDrain *= 1.25;
+        this.matchState.oppFatigue += oppDrain;
+
+        let avgHomeFatigue = totalHomeFatigue / 11;
+        
+        // INTERACTIVE SYSTEM: If we are significantly more tired than opponents, our possession natively bleeds out
+        if (avgHomeFatigue > this.matchState.oppFatigue + 15) {
+            this.matchState.homePossession = Math.max(10, this.matchState.homePossession - 1);
+        }
 
         document.getElementById('match-minute').textContent = this.matchState.minute;
 
-        // Find most tired player for IDSS logic
-        let sortedSquad = [...this.squad].sort((a, b) => b.fatigue - a.fatigue);
-        const mostTired = sortedSquad[0];
-
-        // Build facts dynamically
-        const facts = [];
-        if (this.matchState.homeScore < this.matchState.awayScore) facts.push("status_losing");
-        else if (this.matchState.homeScore > this.matchState.awayScore) facts.push("status_winning");
-        else facts.push("status_drawing");
-
-        if (this.matchState.minute > 75) {
-            facts.push("time_late");
-            facts.push("time_mid");
-        } else if (this.matchState.minute > 45) {
-            facts.push("time_mid");
-        }
-
-        facts.push("weather_rain");
-
-        if (mostTired.fatigue > 75) facts.push("player_fatigue_high");
-        if (this.matchState.oppFatigue > 75) facts.push("opp_fatigue_high");
-
-        // Dynamically build optimal conditions for the UI inference evaluation
-        let optimal = { 
-            mentality: {min: 40, max: 80}, 
-            pressing: {min: 40, max: 80}, 
-            tempo: {min: 30, max: 70} 
-        };
+        this.evaluateCurrentState();
         
-        if (facts.includes("status_losing") && facts.includes("time_late")) {
-            optimal.mentality = {min: 70, max: 100};
-        } else if (facts.includes("status_winning")) {
-            optimal.mentality = {min: 0, max: 40};
-            optimal.pressing = {min: 0, max: 50};
-        }
-        
-        if (facts.includes("weather_rain")) {
-            optimal.tempo = {min: 0, max: 40};
-        }
-        
-        if (facts.includes("player_fatigue_high")) {
-            optimal.subId = "s1"; 
-        }
-
-        // Apply dynamically
-        this.scenario = {
-            facts: facts,
-            optimal: optimal,
-            fatigueAlert: { name: mostTired.name, fatigue: Math.floor(mostTired.fatigue) },
-            opponentProfile: { style: "Normal", fatigue: Math.floor(this.matchState.oppFatigue) }
-        };
-
         // Evaluate live tactics against these facts
         this.runInferenceEngine();
         this.liveEvaluate();
@@ -166,22 +178,58 @@ class GameController {
         const userChoices = { mentality: mentalityVal, pressing: pressing, tempo: tempoVal };
         const result = this.engine.evaluateDecision(this.scenario, userChoices);
         
-        // Scoring logic based on evaluation score (0-100)
+        // Dynamic Possession Logic based on Tactical Accuracy
+        if (result.score >= 75) {
+            this.matchState.homePossession = Math.min(85, this.matchState.homePossession + 2);
+        } else if (result.score <= 40) {
+            this.matchState.homePossession = Math.max(15, this.matchState.homePossession - 3);
+        } else {
+            // Drift back to 50 if neutral
+            if (this.matchState.homePossession > 50) this.matchState.homePossession -= 1;
+            else if (this.matchState.homePossession < 50) this.matchState.homePossession += 1;
+        }
+        this.matchState.awayPossession = 100 - this.matchState.homePossession;
+
+        // Scoring logic based on evaluation score (0-100) and Possession
         let rand = Math.random() * 100;
-        let xg = (result.score / 100) * 1.5; // Up to 1.5% chance per minute
+        let possessionMultiplier = this.matchState.homePossession / 50; 
+        
+        // Exponential reward: Good tactics heavily boost goals, mediocre tactics do nothing.
+        let squaredScore = Math.pow(result.score / 100, 2);
+        let xg = squaredScore * 6.0 * possessionMultiplier; // Up to 6% per min if perfect
+        
+        // Brutal Punishment System: If score drops, concede risk multiplies heavily!
+        let riskFactor = (100 - result.score) / 100;
+        let concedeRisk = 99.8 - (riskFactor * 12); // If score=0, 12% chance per min (1 goal every 8 mins!)
+        
+        // More opponent possession means higher concede risk
+        if (this.matchState.awayPossession > 60) concedeRisk -= 2.0; 
+
         if (rand < xg) {
             this.matchState.homeScore++;
             this.updateScoreBoard();
-            document.getElementById('explanation-box').innerHTML += `<div style="color:var(--accent-primary); font-weight:bold; margin-top:10px;">⚽ ${this.matchState.minute}' GOAL! Brilliant Tactics!</div>`;
-        } else if (rand > (98 - ((100 - result.score) / 100 * 2))) { // Chance to concede if tactics are bad
+            document.getElementById('explanation-box').innerHTML += `<div style="color:var(--accent-primary); font-weight:bold; margin-top:10px;">⚽ ${this.matchState.minute}' GOAL (FCB)! Brilliant Tactics & Possession Control!</div>`;
+        } else if (rand > concedeRisk) { // Chance to concede if tactics are bad
             this.matchState.awayScore++;
             this.updateScoreBoard();
-            document.getElementById('explanation-box').innerHTML += `<div style="color:var(--accent-red); font-weight:bold; margin-top:10px;">💔 ${this.matchState.minute}' CONCEDED! Defense compromised!</div>`;
+            document.getElementById('explanation-box').innerHTML += `<div style="color:var(--accent-red); font-weight:bold; margin-top:10px;">💔 ${this.matchState.minute}' CONCEDED! Defense compromised and lost ball control!</div>`;
         }
         
         this.populateContextGrid();
+        this.liveUpdateSubDropdowns();
     }
     
+    liveUpdateSubDropdowns() {
+        const outSelect = document.getElementById('sub-out');
+        if (!outSelect) return;
+        Array.from(outSelect.options).forEach(opt => {
+            const player = this.squad.find(p => p.id === opt.value);
+            if (player) {
+                opt.textContent = `${player.name} (${player.role}) - ${Math.floor(player.fatigue)}%`;
+            }
+        });
+    }
+
     updateScoreBoard() {
         document.getElementById('score-home').textContent = this.matchState.homeScore;
         document.getElementById('score-away').textContent = this.matchState.awayScore;
@@ -192,10 +240,104 @@ class GameController {
     }
 
     startDynamicMatch() {
+        document.getElementById('match-minute').textContent = this.matchState.minute;
+        this.updateScoreBoard();
+        this.evaluateCurrentState();
         this.populateContextGrid();
         this.renderSubDropdowns();
         this.startPitchAnimation();
-        this.updateSliders();
+        this.updateSliders(); // This internally calls liveEvaluate() and runInferenceEngine() via evaluateCurrentState now pre-set
+    }
+
+    evaluateCurrentState() {
+        if(!this.squad) return;
+        let sortedSquad = [...this.squad].sort((a, b) => b.fatigue - a.fatigue);
+        const mostTired = sortedSquad[0];
+
+        const facts = [];
+        const goalDiff = this.matchState.homeScore - this.matchState.awayScore;
+
+        if (goalDiff < 0) facts.push("status_losing");
+        else if (goalDiff > 0) facts.push("status_winning");
+        else facts.push("status_drawing");
+
+        if (this.matchState.minute > 75) {
+            facts.push("time_late");
+            facts.push("time_mid");
+        } else if (this.matchState.minute > 45) {
+            facts.push("time_mid");
+        }
+
+        if (this.matchState.weather === 'Rain') facts.push("weather_rain");
+
+        if (mostTired.fatigue > 75) facts.push("player_fatigue_high");
+        if (this.matchState.oppFatigue > 75) facts.push("opp_fatigue_high");
+
+        // Base Barcelona logic
+        let optimal = { 
+            mentality: {min: 50, max: 80}, 
+            pressing: {min: 60, max: 85},  
+            tempo: {min: 40, max: 70} 
+        };
+        
+        // Dynamic Goal Difference x Match Time (Deep Strategy Matrix)
+        if (goalDiff <= -2) {
+            // Losing by 2+
+            optimal.mentality = {min: 80, max: 100};
+            optimal.pressing = {min: 85, max: 100};
+            optimal.tempo = {min: 70, max: 100};
+            // PANIC at the end
+            if (facts.includes("time_late")) {
+                optimal.mentality = {min: 95, max: 100}; 
+                optimal.pressing = {min: 95, max: 100};
+                optimal.tempo = {min: 90, max: 100};
+            }
+        } else if (goalDiff === -1) {
+            // Losing by 1
+            if (facts.includes("time_late")) {
+                optimal.mentality = {min: 85, max: 100}; // Rush for equalizer
+                optimal.pressing = {min: 85, max: 100};
+                optimal.tempo = {min: 75, max: 100};
+            } else {
+                optimal.mentality = {min: 65, max: 90}; // Play strongly but composed
+                optimal.pressing = {min: 70, max: 95};
+            }
+        } else if (goalDiff === 1) {
+            // Winning by 1
+            if (facts.includes("time_late")) {
+                optimal.mentality = {min: 20, max: 50}; // Protect narrow lead
+                optimal.pressing = {min: 30, max: 60};
+                optimal.tempo = {min: 20, max: 50};
+            } else {
+                optimal.mentality = {min: 40, max: 70}; // Standard lead protection
+            }
+        } else if (goalDiff >= 2) {
+            // Winning Comfortably
+            if (facts.includes("time_late")) {
+                optimal.mentality = {min: 10, max: 30}; // Kill the game entirely
+                optimal.pressing = {min: 20, max: 40};
+                optimal.tempo = {min: 0, max: 30}; 
+            } else {
+                optimal.mentality = {min: 30, max: 60}; // Safe possession
+                optimal.pressing = {min: 40, max: 70};
+                optimal.tempo = {min: 30, max: 60}; 
+            }
+        }
+        
+        if (facts.includes("weather_rain")) {
+            optimal.tempo = {min: 60, max: 100}; // Fast/Direct play compensates for slips
+        }
+        
+        if (facts.includes("player_fatigue_high")) {
+            optimal.subId = "s1"; 
+        }
+
+        this.scenario = {
+            facts: facts,
+            optimal: optimal,
+            fatigueAlert: { name: mostTired.name, fatigue: Math.floor(mostTired.fatigue) },
+            opponentProfile: { style: "Normal", fatigue: Math.floor(this.matchState.oppFatigue) }
+        };
     }
 
     renderSubDropdowns() {
@@ -278,8 +420,8 @@ class GameController {
                 <div class="context-value">${this.matchState.homeScore} - ${this.matchState.awayScore}</div>
             </div>
             <div class="context-card">
-                <div class="context-label">Time Elapsed</div>
-                <div class="context-value">${this.matchState.minute} minutes</div>
+                <div class="context-label">Ball Possession</div>
+                <div class="context-value" style="color:var(--accent-primary)">FCB ${this.matchState.homePossession}% - ${this.matchState.awayPossession}% OPP</div>
             </div>
             <div class="context-card" style="border-color:${mostTired.fatigue > 75 ? 'var(--accent-red)' : ''}">
                 <div class="context-label">⚠️ Player at Risk</div>
@@ -518,10 +660,28 @@ class GameController {
             }).join('');
         }
 
+        let possessionMultiplier = this.matchState.homePossession / 50; 
+        
+        let squaredScore = Math.pow(result.score / 100, 2);
+        let xg = squaredScore * 6.0 * possessionMultiplier; 
+        
+        let riskFactor = (100 - result.score) / 100;
+        let concedeRisk = 99.8 - (riskFactor * 12); 
+        if (this.matchState.awayPossession > 60) concedeRisk -= 2.0; 
+        
+        let goalChance = (xg).toFixed(2);
+        let defRisk = (100 - concedeRisk).toFixed(2);
+
+        this.latestTacticalScore = result.score;
+
         explanationBox.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-size:1.4rem; font-weight:bold; color:${color};">Success Rate: ${result.score}%</span>
                 <span class="badge" style="background:${color}; color:#000;">${result.verdict}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:0.8rem; padding:0.5rem; background:rgba(255,255,255,0.05); border-radius:5px;">
+                <span style="color:var(--accent-primary); font-size:0.85rem">Goal Chance: <strong>${goalChance}% per min</strong></span>
+                <span style="color:var(--accent-red); font-size:0.85rem">Concede Risk: <strong>${defRisk}% per min</strong></span>
             </div>
             ${detailsHtml}
             ${rulesHtml}
@@ -529,7 +689,32 @@ class GameController {
     }
 
     nextScenario() {
-        this.toggleMatch();
+        if (this.matchState.minute >= 90) {
+            // Setup a random scenario!
+            this.matchState = {
+                minute: Math.floor(Math.random() * 40) + 40, // Start between min 40 and 80
+                homeScore: Math.floor(Math.random() * 3),
+                awayScore: Math.floor(Math.random() * 3),
+                homePossession: Math.floor(Math.random() * 40) + 30, // 30-70%
+                awayPossession: 0, 
+                weather: Math.random() > 0.5 ? 'Rain' : 'Clear',
+                oppFatigue: Math.floor(Math.random() * 40) + 20, // 20-60%
+                isPlaying: false
+            };
+            this.matchState.awayPossession = 100 - this.matchState.homePossession;
+
+            // Reset Sub Count and Squad Fatigue
+            this.subsRemaining = 5;
+            this.squad.forEach(p => p.fatigue = Math.floor(Math.random() * 30) + 10); // Start slightly tired
+
+            // Force visual resets
+            document.getElementById('explanation-box').innerHTML = `<div class="empty-state">Starting new random scenario...</div>`;
+            document.getElementById('btn-next-scenario').textContent = '▶️ Start Match';
+            this.startDynamicMatch();
+
+        } else {
+            this.toggleMatch();
+        }
     }
 
     // --- DRAW PITCH ---
@@ -548,23 +733,80 @@ class GameController {
         });
         container.innerHTML = phtml;
 
-        // Abstract jiggle animation to make field look active
+        // Abstract jiggle animation to make field look active! Deeply interactive with Slider
         this.pitchInterval = setInterval(() => {
+            const mentality = parseInt(document.getElementById('slider-mentality').value || 50);
+            const pressing = parseInt(document.getElementById('slider-pressing').value || 50);
+            
+            // X shift determines how far up the pitch we play (attacking mentality = forward)
+            const baseShiftX = (mentality - 50) / 2.5; 
+            
+            // Width Expansion: Higher mentality = players use full width of the pitch. Lower = narrow defense.
+            const widthMultiplier = mentality > 60 ? 1.3 : (mentality < 40 ? 0.7 : 1.0);
+
+            // Deep Success Rate UI Integration
+            let tacticalScore = this.latestTacticalScore || 100;
+            let tacticalJitterMultiplier = 1.0;
+            
+            const pitchDiv = document.querySelector('.pitch');
+            if (pitchDiv) {
+                if (tacticalScore >= 85) {
+                    tacticalJitterMultiplier = 0.2; // Perfectly composed shape
+                    pitchDiv.style.boxShadow = '0 0 30px rgba(39, 174, 96, 0.4)'; // Green glow
+                    pitchDiv.style.borderColor = 'rgba(39, 174, 96, 0.8)';
+                } else if (tacticalScore < 40) {
+                    tacticalJitterMultiplier = 3.5; // Complete tactical chaos
+                    pitchDiv.style.boxShadow = '0 0 30px rgba(231, 76, 60, 0.5)'; // Red glow
+                    pitchDiv.style.borderColor = 'rgba(231, 76, 60, 0.8)';
+                } else {
+                    pitchDiv.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+                    pitchDiv.style.borderColor = 'rgba(255,255,255,0.1)';
+                }
+            }
+
+            // Base jitter
+            const baseJitter = (pressing / 20) * tacticalJitterMultiplier;
+
             KnowledgeBase.formation.forEach(p => {
                 const el = document.getElementById(`ui-${p.id}`);
-                const rx = p.x + (Math.random() * 6 - 3);
-                const ry = p.y + (Math.random() * 6 - 3);
-                el.style.left = `${rx}%`;
-                el.style.top = `${ry}%`;
+                const playerRef = this.squad ? this.squad.find(sq => sq.id === p.id) : null;
+                if (!el) return;
+                
+                // Fatigue Penalty: High fatigue makes the player walk instead of run
+                let fatiguePenalty = playerRef ? (playerRef.fatigue / 100) : 0;
+                let activeJitter = Math.max(0.5, baseJitter * (1 - fatiguePenalty));
+
+                let currentX = p.x + baseShiftX;
+                // Goalkeepers and CBs don't push up to the midline!
+                if(p.id === 'p1') currentX = p.x + (baseShiftX/5);
+                else if (p.role === 'CB') currentX = p.x + (baseShiftX/2);
+
+                // Y (Width) Expansion logic from center (50)
+                let currentY = 50 + ((p.y - 50) * widthMultiplier);
+
+                const rx = currentX + (Math.random() * activeJitter - (activeJitter/2));
+                const ry = currentY + (Math.random() * activeJitter - (activeJitter/2));
+                el.style.left = `${Math.min(95, Math.max(0, rx))}%`;
+                el.style.top = `${Math.min(95, Math.max(0, ry))}%`;
             });
+
             KnowledgeBase.oppFormation.forEach((p, i) => {
                 const el = document.getElementById(`ui-opp-${i}`);
-                const rx = p.x + (Math.random() * 6 - 3);
-                const ry = p.y + (Math.random() * 6 - 3);
-                el.style.left = `${rx}%`;
-                el.style.top = `${ry}%`;
+                if (!el) return;
+                
+                // Opponents naturally retreat if Barca hogs possession
+                let possessionFearX = 0;
+                if (this.matchState && this.matchState.homePossession > 60) {
+                    possessionFearX = (this.matchState.homePossession - 60) / 2;
+                }
+
+                // Opponents get pushed back if we push up AND if we have possession
+                const rx = p.x + (baseShiftX / 1.5) + possessionFearX + (Math.random() * baseJitter - (baseJitter/2));
+                const ry = p.y + (Math.random() * 4 - 2);
+                el.style.left = `${Math.min(95, Math.max(0, rx))}%`;
+                el.style.top = `${Math.min(95, Math.max(0, ry))}%`;
             });
-        }, 1500);
+        }, 1000);
     }
 }
 

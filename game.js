@@ -9,7 +9,7 @@ class GameController {
         this.currentScenarioIndex = 0;
         this.scenario = null;
         this.selectedSub = null;
-        
+
         // Pitch Animation Interval
         this.pitchInterval = null;
     }
@@ -28,7 +28,7 @@ class GameController {
 
     setupScenario(mode, autoplay = true) {
         clearInterval(this.matchInterval);
-        
+
         this.squad = [
             { id: 'p1', name: 'Ter Stegen', role: 'GK', fatigue: 5 },
             { id: 'p2', name: 'Balde', role: 'LB', fatigue: 15 },
@@ -82,12 +82,17 @@ class GameController {
 
         document.getElementById('btn-next-scenario').textContent = '▶️ Play Match';
         document.getElementById('btn-next-scenario').disabled = false;
-        
+
         this.startDynamicMatch();
         if (autoplay) this.toggleMatch(); // AUTO-START TICKING WHEN SCENARIO SPAWNS
     }
 
     toggleMatch() {
+        if (this.matchState.minute >= 90) {
+            this.setupScenario('fresh'); // Restart match
+            return;
+        }
+
         if (this.matchState.isPlaying) {
             clearInterval(this.matchInterval);
             this.matchState.isPlaying = false;
@@ -101,30 +106,34 @@ class GameController {
 
     tickMinute() {
         if (this.matchState.minute >= 90) {
-            if (this.matchState.isPlaying) this.toggleMatch();
+            if (this.matchState.isPlaying) {
+                clearInterval(this.matchInterval);
+                this.matchState.isPlaying = false;
+            }
             document.getElementById('match-minute').textContent = "FT";
-            document.getElementById('btn-next-scenario').disabled = true;
+            document.getElementById('btn-next-scenario').textContent = '🆕 Start New Match';
+            document.getElementById('btn-next-scenario').disabled = false;
             return;
         }
 
         this.matchState.minute++;
-        
+
         // HALFTIME LOGIC
         if (this.matchState.minute === 46 && !this.matchState.halftimeDone) {
             this.matchState.halftimeDone = true;
             this.matchState.minute = 45; // Display 45 for the break
-            
+
             if (this.matchState.isPlaying) this.toggleMatch();
-            
+
             document.getElementById('match-minute').textContent = "HT";
             document.getElementById('btn-next-scenario').textContent = '▶️ Start 2nd Half';
-            
+
             // Recover fatigue between halves
             this.squad.forEach(p => p.fatigue = Math.max(0, p.fatigue - 20));
             this.matchState.oppFatigue = Math.max(0, this.matchState.oppFatigue - 20);
-            
+
             this.liveUpdateSubDropdowns();
-            
+
             document.getElementById('explanation-box').innerHTML = `
                 <div style="text-align:center; padding: 2rem; background:rgba(0,0,0,0.5); border-radius:10px;">
                     <h2 style="color:var(--accent-orange); font-size:2.5rem; margin-bottom:10px;">⏱ Halftime</h2>
@@ -137,16 +146,16 @@ class GameController {
         // Fatigue increase logic for all 11 players
         const pressing = parseInt(document.getElementById('slider-pressing').value);
         const tempo = parseInt(document.getElementById('slider-tempo').value);
-        
+
         let baseDrain = 0.15 + (pressing / 400) + (tempo / 500);
         if (this.matchState.weather === 'Rain') baseDrain *= 1.25; // Rain tires players out more
-        
+
         let totalHomeFatigue = 0;
         this.squad.forEach(p => {
             let mult = 1.0;
             if (p.role === 'GK') mult = 0.1;
             if (p.role.includes('W') || p.role === 'LB' || p.role === 'RB') mult = 1.6;
-            
+
             p.fatigue += (baseDrain * mult);
             if (p.fatigue > 100) p.fatigue = 100;
             totalHomeFatigue += p.fatigue;
@@ -158,7 +167,7 @@ class GameController {
         this.matchState.oppFatigue += oppDrain;
 
         let avgHomeFatigue = totalHomeFatigue / 11;
-        
+
         // INTERACTIVE SYSTEM: If we are significantly more tired than opponents, our possession natively bleeds out
         if (avgHomeFatigue > this.matchState.oppFatigue + 15) {
             this.matchState.homePossession = Math.max(10, this.matchState.homePossession - 1);
@@ -167,17 +176,17 @@ class GameController {
         document.getElementById('match-minute').textContent = this.matchState.minute;
 
         this.evaluateCurrentState();
-        
+
         // Evaluate live tactics against these facts
         this.runInferenceEngine();
         this.liveEvaluate();
-        
+
         // Probability Goal Engine
         const mentalityVal = parseInt(document.getElementById('slider-mentality').value);
         const tempoVal = parseInt(document.getElementById('slider-tempo').value);
         const userChoices = { mentality: mentalityVal, pressing: pressing, tempo: tempoVal };
         const result = this.engine.evaluateDecision(this.scenario, userChoices);
-        
+
         // Dynamic Possession Logic based on Tactical Accuracy
         if (result.score >= 75) {
             this.matchState.homePossession = Math.min(85, this.matchState.homePossession + 2);
@@ -192,18 +201,18 @@ class GameController {
 
         // Scoring logic based on evaluation score (0-100) and Possession
         let rand = Math.random() * 100;
-        let possessionMultiplier = this.matchState.homePossession / 50; 
-        
+        let possessionMultiplier = this.matchState.homePossession / 50;
+
         // Exponential reward: Good tactics heavily boost goals, mediocre tactics do nothing.
         let squaredScore = Math.pow(result.score / 100, 2);
         let xg = squaredScore * 6.0 * possessionMultiplier; // Up to 6% per min if perfect
-        
+
         // Brutal Punishment System: If score drops, concede risk multiplies heavily!
         let riskFactor = (100 - result.score) / 100;
         let concedeRisk = 99.8 - (riskFactor * 12); // If score=0, 12% chance per min (1 goal every 8 mins!)
-        
+
         // More opponent possession means higher concede risk
-        if (this.matchState.awayPossession > 60) concedeRisk -= 2.0; 
+        if (this.matchState.awayPossession > 60) concedeRisk -= 2.0;
 
         if (rand < xg) {
             this.matchState.homeScore++;
@@ -214,11 +223,11 @@ class GameController {
             this.updateScoreBoard();
             document.getElementById('explanation-box').innerHTML += `<div style="color:var(--accent-red); font-weight:bold; margin-top:10px;">💔 ${this.matchState.minute}' CONCEDED! Defense compromised and lost ball control!</div>`;
         }
-        
+
         this.populateContextGrid();
         this.liveUpdateSubDropdowns();
     }
-    
+
     liveUpdateSubDropdowns() {
         const outSelect = document.getElementById('sub-out');
         if (!outSelect) return;
@@ -233,7 +242,7 @@ class GameController {
     updateScoreBoard() {
         document.getElementById('score-home').textContent = this.matchState.homeScore;
         document.getElementById('score-away').textContent = this.matchState.awayScore;
-        
+
         const scoreBoard = document.querySelector('.scoreboard');
         scoreBoard.style.transform = 'scale(1.2)';
         setTimeout(() => scoreBoard.style.transform = 'scale(1)', 400);
@@ -250,7 +259,7 @@ class GameController {
     }
 
     evaluateCurrentState() {
-        if(!this.squad) return;
+        if (!this.squad) return;
         let sortedSquad = [...this.squad].sort((a, b) => b.fatigue - a.fatigue);
         const mostTired = sortedSquad[0];
 
@@ -274,62 +283,62 @@ class GameController {
         if (this.matchState.oppFatigue > 75) facts.push("opp_fatigue_high");
 
         // Base Barcelona logic
-        let optimal = { 
-            mentality: {min: 50, max: 80}, 
-            pressing: {min: 60, max: 85},  
-            tempo: {min: 40, max: 70} 
+        let optimal = {
+            mentality: { min: 50, max: 80 },
+            pressing: { min: 60, max: 85 },
+            tempo: { min: 40, max: 70 }
         };
-        
+
         // Dynamic Goal Difference x Match Time (Deep Strategy Matrix)
         if (goalDiff <= -2) {
             // Losing by 2+
-            optimal.mentality = {min: 80, max: 100};
-            optimal.pressing = {min: 85, max: 100};
-            optimal.tempo = {min: 70, max: 100};
+            optimal.mentality = { min: 80, max: 100 };
+            optimal.pressing = { min: 85, max: 100 };
+            optimal.tempo = { min: 70, max: 100 };
             // PANIC at the end
             if (facts.includes("time_late")) {
-                optimal.mentality = {min: 95, max: 100}; 
-                optimal.pressing = {min: 95, max: 100};
-                optimal.tempo = {min: 90, max: 100};
+                optimal.mentality = { min: 95, max: 100 };
+                optimal.pressing = { min: 95, max: 100 };
+                optimal.tempo = { min: 90, max: 100 };
             }
         } else if (goalDiff === -1) {
             // Losing by 1
             if (facts.includes("time_late")) {
-                optimal.mentality = {min: 85, max: 100}; // Rush for equalizer
-                optimal.pressing = {min: 85, max: 100};
-                optimal.tempo = {min: 75, max: 100};
+                optimal.mentality = { min: 85, max: 100 }; // Rush for equalizer
+                optimal.pressing = { min: 85, max: 100 };
+                optimal.tempo = { min: 75, max: 100 };
             } else {
-                optimal.mentality = {min: 65, max: 90}; // Play strongly but composed
-                optimal.pressing = {min: 70, max: 95};
+                optimal.mentality = { min: 65, max: 90 }; // Play strongly but composed
+                optimal.pressing = { min: 70, max: 95 };
             }
         } else if (goalDiff === 1) {
             // Winning by 1
             if (facts.includes("time_late")) {
-                optimal.mentality = {min: 20, max: 50}; // Protect narrow lead
-                optimal.pressing = {min: 30, max: 60};
-                optimal.tempo = {min: 20, max: 50};
+                optimal.mentality = { min: 20, max: 50 }; // Protect narrow lead
+                optimal.pressing = { min: 30, max: 60 };
+                optimal.tempo = { min: 20, max: 50 };
             } else {
-                optimal.mentality = {min: 40, max: 70}; // Standard lead protection
+                optimal.mentality = { min: 40, max: 70 }; // Standard lead protection
             }
         } else if (goalDiff >= 2) {
             // Winning Comfortably
             if (facts.includes("time_late")) {
-                optimal.mentality = {min: 10, max: 30}; // Kill the game entirely
-                optimal.pressing = {min: 20, max: 40};
-                optimal.tempo = {min: 0, max: 30}; 
+                optimal.mentality = { min: 10, max: 30 }; // Kill the game entirely
+                optimal.pressing = { min: 20, max: 40 };
+                optimal.tempo = { min: 0, max: 30 };
             } else {
-                optimal.mentality = {min: 30, max: 60}; // Safe possession
-                optimal.pressing = {min: 40, max: 70};
-                optimal.tempo = {min: 30, max: 60}; 
+                optimal.mentality = { min: 30, max: 60 }; // Safe possession
+                optimal.pressing = { min: 40, max: 70 };
+                optimal.tempo = { min: 30, max: 60 };
             }
         }
-        
+
         if (facts.includes("weather_rain")) {
-            optimal.tempo = {min: 60, max: 100}; // Fast/Direct play compensates for slips
+            optimal.tempo = { min: 60, max: 100 }; // Fast/Direct play compensates for slips
         }
-        
+
         if (facts.includes("player_fatigue_high")) {
-            optimal.subId = "s1"; 
+            optimal.subId = "s1";
         }
 
         this.scenario = {
@@ -342,18 +351,18 @@ class GameController {
 
     renderSubDropdowns() {
         document.getElementById('subs-count').textContent = this.subsRemaining;
-        
+
         const outSelect = document.getElementById('sub-out');
         const inSelect = document.getElementById('sub-in');
-        
+
         // Populate Out Select
         // Sort squad by fatigue to help user
-        let sortedSquad = [...this.squad].sort((a,b) => b.fatigue - a.fatigue);
+        let sortedSquad = [...this.squad].sort((a, b) => b.fatigue - a.fatigue);
         outSelect.innerHTML = sortedSquad.map(p => `<option value="${p.id}">${p.name} (${p.role}) - ${Math.floor(p.fatigue)}%</option>`).join('');
-        
+
         // Populate In Select
         inSelect.innerHTML = this.bench.map(p => `<option value="${p.id}">${p.name} (${p.role})</option>`).join('');
-        
+
         if (this.subsRemaining <= 0) {
             document.getElementById('btn-make-sub').disabled = true;
             document.getElementById('btn-make-sub').textContent = "No Subs Remaining";
@@ -387,18 +396,18 @@ class GameController {
             this.squad.push(inPlayer);
 
             this.subsRemaining--;
-            
+
             // Re-render
             this.renderSubDropdowns();
             this.populateContextGrid();
-            
+
             // Visual feedback
             const btn = document.getElementById('btn-make-sub');
             btn.innerHTML = `✅ ${inPlayer.name} IN`;
-            setTimeout(() => { if(this.subsRemaining>0) btn.innerHTML = "🔄 Confirm Substitution"; }, 2000);
-            
+            setTimeout(() => { if (this.subsRemaining > 0) btn.innerHTML = "🔄 Confirm Substitution"; }, 2000);
+
             document.getElementById('explanation-box').innerHTML += `<div style="color:var(--accent-blue); font-weight:bold; margin-top:10px;">🔄 SUB: ${inPlayer.name} replaces ${outPlayer.name}</div>`;
-            
+
             // IDSS hack: the model expects userChoices.subId to match if facts needed sub.
             // But since dropping the tired player immediately drops mostTired.fatigue, the next tick fixes the score automatically!
             this.liveEvaluate();
@@ -407,7 +416,7 @@ class GameController {
 
     // selectSub is completely obsolete now
     // kept empty so nothing crashes if legacy html calls it
-    selectSub() {}
+    selectSub() { }
 
     populateContextGrid() {
         if (!this.squad) return;
@@ -440,7 +449,7 @@ class GameController {
         if (index >= KnowledgeBase.scenarios.length) {
             index = 0; // loop back for simple demo
         }
-        
+
         this.currentScenarioIndex = index;
         this.scenario = KnowledgeBase.scenarios[index];
         this.selectedSub = null;
@@ -532,7 +541,7 @@ class GameController {
         const lTempo = document.getElementById('label-tempo');
         lTempo.textContent = fuzzyTempo.term;
         lTempo.className = `fuzzy-label ${fuzzyTempo.class}`;
-        
+
         // Live evaluation
         this.liveEvaluate();
     }
@@ -546,14 +555,14 @@ class GameController {
         this.selectedSub = subId;
         document.querySelectorAll('.sub-card').forEach(s => s.classList.remove('selected'));
         const elem = document.getElementById(`sub-${subId}`);
-        if(elem) elem.classList.add('selected');
-        
+        if (elem) elem.classList.add('selected');
+
         // Gameplay effect: Subbing physically drops the fatigue metric!
         if (this.matchState.myFatigue > 60) {
             this.matchState.myFatigue -= 40; // Massive energy boost
             this.populateContextGrid();
         }
-        
+
         // Disable the subs visually (we only allow 1 for simplicity)
         setTimeout(() => {
             document.getElementById('subs-container').innerHTML = "<div class='empty-state' style='color:var(--accent-blue); font-weight:600;'>🔄 Substitution Executed. Fresh legs on the pitch!</div>";
@@ -582,7 +591,7 @@ class GameController {
                 <div class="pred-item">
                     <strong style="color:var(--accent-blue)">Conclusion:</strong> ${p.conclusion} <br>
                     <span style="color:var(--text-muted)">Recommendation: ${p.action}</span>
-                    <div style="font-size:0.6rem; margin-top:4px; font-family:var(--font-mono)">Confidence: ${p.confidence*100}% [Rule ${p.ruleId}]</div>
+                    <div style="font-size:0.6rem; margin-top:4px; font-family:var(--font-mono)">Confidence: ${p.confidence * 100}% [Rule ${p.ruleId}]</div>
                 </div>
             `;
         });
@@ -607,9 +616,9 @@ class GameController {
                     Goal [Need Goal] relies on Rule <span style="color:var(--accent-blue)">${t.ruleId}</span> requiring facts:
                     <ul style="padding-left: 1rem; color:var(--text-muted); margin-top:4px;">
                         ${t.requiredFacts.map(f => {
-                            const hasIt = this.scenario.facts.includes(f);
-                            return `<li style="color:${hasIt ? 'var(--accent-primary)' : 'var(--accent-red)'}">Fact: ${f} [${hasIt ? 'YES' : 'NO'}]</li>`;
-                        }).join('')}
+                const hasIt = this.scenario.facts.includes(f);
+                return `<li style="color:${hasIt ? 'var(--accent-primary)' : 'var(--accent-red)'}">Fact: ${f} [${hasIt ? 'YES' : 'NO'}]</li>`;
+            }).join('')}
                     </ul>
                 </div>
             `;
@@ -631,12 +640,12 @@ class GameController {
         };
 
         const result = this.engine.evaluateDecision(this.scenario, userChoices);
-        
+
         // Populate inference explanation box directly
         const explanationBox = document.getElementById('explanation-box');
-        
+
         const color = result.score >= 80 ? 'var(--accent-primary)' : result.score >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
-        
+
         let detailsHtml = '';
         if (result.diffs.length > 0) {
             detailsHtml = "<div style='margin-top:10px; color:var(--text-faint); font-weight:600;'>Areas to improve:</div><ul style='padding-left:1.5rem; margin-top:4px;'><li>" + result.diffs.join("</li><li>") + "</li></ul>";
@@ -660,15 +669,15 @@ class GameController {
             }).join('');
         }
 
-        let possessionMultiplier = this.matchState.homePossession / 50; 
-        
+        let possessionMultiplier = this.matchState.homePossession / 50;
+
         let squaredScore = Math.pow(result.score / 100, 2);
-        let xg = squaredScore * 6.0 * possessionMultiplier; 
-        
+        let xg = squaredScore * 6.0 * possessionMultiplier;
+
         let riskFactor = (100 - result.score) / 100;
-        let concedeRisk = 99.8 - (riskFactor * 12); 
-        if (this.matchState.awayPossession > 60) concedeRisk -= 2.0; 
-        
+        let concedeRisk = 99.8 - (riskFactor * 12);
+        if (this.matchState.awayPossession > 60) concedeRisk -= 2.0;
+
         let goalChance = (xg).toFixed(2);
         let defRisk = (100 - concedeRisk).toFixed(2);
 
@@ -696,7 +705,7 @@ class GameController {
                 homeScore: Math.floor(Math.random() * 3),
                 awayScore: Math.floor(Math.random() * 3),
                 homePossession: Math.floor(Math.random() * 40) + 30, // 30-70%
-                awayPossession: 0, 
+                awayPossession: 0,
                 weather: Math.random() > 0.5 ? 'Rain' : 'Clear',
                 oppFatigue: Math.floor(Math.random() * 40) + 20, // 20-60%
                 isPlaying: false
@@ -722,7 +731,7 @@ class GameController {
         if (this.pitchInterval) clearInterval(this.pitchInterval);
 
         const container = document.getElementById('players-container');
-        
+
         // Simple DOM generation
         let phtml = '';
         KnowledgeBase.formation.forEach(p => {
@@ -737,17 +746,17 @@ class GameController {
         this.pitchInterval = setInterval(() => {
             const mentality = parseInt(document.getElementById('slider-mentality').value || 50);
             const pressing = parseInt(document.getElementById('slider-pressing').value || 50);
-            
+
             // X shift determines how far up the pitch we play (attacking mentality = forward)
-            const baseShiftX = (mentality - 50) / 2.5; 
-            
+            const baseShiftX = (mentality - 50) / 2.5;
+
             // Width Expansion: Higher mentality = players use full width of the pitch. Lower = narrow defense.
             const widthMultiplier = mentality > 60 ? 1.3 : (mentality < 40 ? 0.7 : 1.0);
 
             // Deep Success Rate UI Integration
             let tacticalScore = this.latestTacticalScore || 100;
             let tacticalJitterMultiplier = 1.0;
-            
+
             const pitchDiv = document.querySelector('.pitch');
             if (pitchDiv) {
                 if (tacticalScore >= 85) {
@@ -771,21 +780,21 @@ class GameController {
                 const el = document.getElementById(`ui-${p.id}`);
                 const playerRef = this.squad ? this.squad.find(sq => sq.id === p.id) : null;
                 if (!el) return;
-                
+
                 // Fatigue Penalty: High fatigue makes the player walk instead of run
                 let fatiguePenalty = playerRef ? (playerRef.fatigue / 100) : 0;
                 let activeJitter = Math.max(0.5, baseJitter * (1 - fatiguePenalty));
 
                 let currentX = p.x + baseShiftX;
                 // Goalkeepers and CBs don't push up to the midline!
-                if(p.id === 'p1') currentX = p.x + (baseShiftX/5);
-                else if (p.role === 'CB') currentX = p.x + (baseShiftX/2);
+                if (p.id === 'p1') currentX = p.x + (baseShiftX / 5);
+                else if (p.role === 'CB') currentX = p.x + (baseShiftX / 2);
 
                 // Y (Width) Expansion logic from center (50)
                 let currentY = 50 + ((p.y - 50) * widthMultiplier);
 
-                const rx = currentX + (Math.random() * activeJitter - (activeJitter/2));
-                const ry = currentY + (Math.random() * activeJitter - (activeJitter/2));
+                const rx = currentX + (Math.random() * activeJitter - (activeJitter / 2));
+                const ry = currentY + (Math.random() * activeJitter - (activeJitter / 2));
                 el.style.left = `${Math.min(95, Math.max(0, rx))}%`;
                 el.style.top = `${Math.min(95, Math.max(0, ry))}%`;
             });
@@ -793,7 +802,7 @@ class GameController {
             KnowledgeBase.oppFormation.forEach((p, i) => {
                 const el = document.getElementById(`ui-opp-${i}`);
                 if (!el) return;
-                
+
                 // Opponents naturally retreat if Barca hogs possession
                 let possessionFearX = 0;
                 if (this.matchState && this.matchState.homePossession > 60) {
@@ -801,7 +810,7 @@ class GameController {
                 }
 
                 // Opponents get pushed back if we push up AND if we have possession
-                const rx = p.x + (baseShiftX / 1.5) + possessionFearX + (Math.random() * baseJitter - (baseJitter/2));
+                const rx = p.x + (baseShiftX / 1.5) + possessionFearX + (Math.random() * baseJitter - (baseJitter / 2));
                 const ry = p.y + (Math.random() * 4 - 2);
                 el.style.left = `${Math.min(95, Math.max(0, rx))}%`;
                 el.style.top = `${Math.min(95, Math.max(0, ry))}%`;
